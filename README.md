@@ -1,2 +1,5 @@
 # qt_test
-qt6的测试
+pyside6的测试
+
+# 打开qt designer
+pyside6-designer

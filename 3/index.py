@@ -1,6 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication, QBoxLayout, QDialog, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout
 
+
 class Form(QDialog):
     
     def __init__(self, parent=None):
