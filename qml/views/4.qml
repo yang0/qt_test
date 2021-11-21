@@ -21,31 +21,36 @@ Window {
         AccordionWidget {
             id: sandboxButton
             title: "Ventilation"
-            ColumnLayout {
+            Rectangle{
+                color: "yellow"
                 anchors.fill: parent
-                spacing: 1
-                property var currentItem: null
-                Button {
-                    height: parent.height / 3
-                    text: "Setup Vent"
-                }
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 1
+                    property var currentItem: null
+                    
+                    Button {
+                        height: parent.height / 3
+                        text: "Setup Vent"
+                    }
 
-                Button {
-                    height: parent.height / 3
-                    text: "Apnea"
-                }
+                    Button {
+                        height: parent.height / 3
+                        text: "Apnea"
+                    }
 
-                Button {
-                    height: parent.height / 3
-                    text: "Alarms"
+                    Button {
+                        height: parent.height / 3
+                        text: "Alarms"
+                    }
                 }
-            }
+            }            
         }
 
         AccordionWidget {
             title: "Therapy 1"
             Rectangle {
-                color: "white"
+                color: "blue"
                 anchors.fill: parent
             }
         }
@@ -53,7 +58,7 @@ Window {
         AccordionWidget {
             title: "Therapy 2"
             Rectangle {
-                color: "white"
+                color: "red"
                 anchors.fill: parent
             }
         }

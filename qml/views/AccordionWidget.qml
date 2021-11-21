@@ -10,17 +10,39 @@ Item {
     property int index: 0
     property var accordionNodes: []
 
-    readonly property int expandMinimumHeight: 100
-    Layout.fillWidth: true
-    Layout.fillHeight: current
-
     property bool current: false
+    readonly property int expandMinimumHeight: 100
     property int handleHeight: 4
     property int barHeight: 50
     property int fixedHeight: handleHeight + barHeight
-    implicitHeight: fixedHeight
-    property bool canZoomout: height > expandMinimumHeight && current
+    Layout.fillWidth: true
+    Layout.fillHeight: current
+    Layout.minimumHeight: current ? expandMinimumHeight : fixedHeight
+    Layout.maximumHeight:99999
+    Layout.preferredHeight: fixedHeight
 
+    // implicitHeight: fixedHeight
+    property bool canZoomout: height > expandMinimumHeight && current
+    property int preservedHeight: expandMinimumHeight
+    
+
+    function clickZoomInItem(){
+        root.Layout.preferredHeight = preservedHeight
+    }
+
+    function clickZoomOutItem(){
+        root.Layout.preferredHeight = fixedHeight
+    }
+
+    // 展开或收拢当前节点
+    function clickZoomItem(){
+        root.current = !root.current
+        if(current){
+            clickZoomInItem()
+        }else{
+            clickZoomOutItem()
+        }
+    }
 
     // 当拖拉操作可能过多时，修剪掉多余的位移值
     function fineOffsetY(srcOffsetY, itemHeight, minItemHeight){
@@ -30,52 +52,10 @@ Item {
         return srcOffsetY
     }
 
-    //下压, 调整节点Y值
-    function adjustDownY(offset, activeNode){
-        console.log("[adjustDownY] offset:" + offset + " activeNode: " + activeNode.title)
-        var upExpandNode = undefined //当前节点上方最近的展开节点
-        for(var i=0; i < root.index; i++){
-            var node = accordionNodes[i]
-            if(node.current) upExpandNode=node
-        }
-
-        for(var i=0; i < accordionNodes.length; i++){
-            var node = accordionNodes[i]
-            console.log(node.title + " | index: " + node.index)
-            if(node.index <= activeNode.index && node.index > upExpandNode.index){
-                console.log(node.title + " 调整Y值：" + offset)
-                node.y += offset
-            }
-        }
-
-        upExpandNode.height += offset
-    }
-
-
-    //上推, 调整节点Y值
-    function adjustUpY(offset, activeNode){
-        console.log("[adjustUpY] offset:" + offset + " activeNode: " + activeNode.title)
-        var downExpandNode = undefined //当前节点下方最近的展开节点
-        for(var i=accordionNodes.length-1; i >= root.index; i--){
-            var node = accordionNodes[i]
-            if(node.current) downExpandNode=node
-        }
-
-        for(var i=accordionNodes.length-1; i >= 0; i--){
-            var node = accordionNodes[i]
-            if(node.index > activeNode.index && node.index <= downExpandNode.index){
-                console.log(node.title + " 调整Y值：" + offset)
-                node.y += offset
-            }
-        }
-
-        downExpandNode.height -= offset
-    }
-
     // 压缩Item, 返回真实的压缩值
-    function zoomOutItem(offsetY, item){
+    function dragZoomOutItem(offsetY, item){
         var dragUp = false
-        if(offsetY < 0){//取反
+        if(offsetY < 0){//取正
             dragUp = true
             offsetY = 0 - offsetY
         }
@@ -83,12 +63,9 @@ Item {
         if(!item.current) minItemHeight = item.fixedHeight
         var itemOffset = fineOffsetY(offsetY, item.height, minItemHeight)
         if(itemOffset <= 0) return 0 // 已到达最小高度，无法再压缩
-        item.height -= itemOffset //调整高度
+        item.Layout.preferredHeight -= itemOffset //调整高度
         if(dragUp){
             itemOffset = 0 - itemOffset // 再次变成负值
-            adjustUpY(itemOffset, item)
-        }else{
-            adjustDownY(itemOffset, item)
         }
         
         return itemOffset
@@ -112,7 +89,7 @@ Item {
                 if(node.canZoomout) canDown = true
             }
         }
-        // console.log("canUp: "+canUp+" canDown: "+canDown+" upExpandNodes: "+upExpandNodes+" downExpandNodes: "+downExpandNodes)
+        console.log("canUp: "+canUp+" canDown: "+canDown+" upExpandNodes: "+upExpandNodes+" downExpandNodes: "+downExpandNodes)
         if(!canUp){
             if(!canDown || upExpandNodes === 0) return false
         }else{
@@ -120,6 +97,25 @@ Item {
         }
 
         return true
+    }
+
+    function upNodes(){
+        //上方节点
+        return accordionNodes.slice(0, root.index).reverse()
+    }
+
+    function downNodes(){
+        //包括自己及下方节点
+        return accordionNodes.slice(root.index)
+    }
+
+    //当前离节点最近的展开节点
+    function nearestExpandedNode(isDown){
+        var nodes = upNodes()
+        if(isDown) nodes = downNodes()
+        for(var i=0; i < nodes.length; i++){
+            if(nodes[i].current) return nodes[i]
+        }
     }
 
 
@@ -130,6 +126,7 @@ Item {
         
         Rectangle {
             id: handle
+            Layout.alignment: Qt.AlignTop
             Layout.fillWidth: true
             implicitHeight: handleHeight
             color: "#CEECF5"
@@ -159,34 +156,37 @@ Item {
                     if(pressed && canDrag()){
                         var offsetY = mouse.y - startPoint.y;
 
+
+                        var nodes = downNodes()
                         if(offsetY < 0){
-                            for(var i = root.index-1; i >= 0; i--){
-                                var node = root.accordionNodes[i]
-                                if(node.canZoomout){
-                                    var itemOffset = zoomOutItem(offsetY, node)
-                                    if(offsetY < itemOffset){
-                                        offsetY -= itemOffset
-                                    }else{
-                                        return
-                                    }
+                            nodes = upNodes()
+                        }
+
+                        var nearestUpNode = nearestExpandedNode(false)
+                        var nearestDownNode = nearestExpandedNode(true)
+
+                        console.log("nodes.length:" + nodes.length)
+
+                        for(var i = 0; i < nodes.length; i++){
+                            var node = nodes[i]
+                            console.log(node.title)
+                            if(node.canZoomout){
+                                var itemOffset = dragZoomOutItem(offsetY, node)
+                                if(offsetY > 0){
+                                    nearestUpNode.Layout.preferredHeight += itemOffset    
+                                }else{
+                                    root.y += itemOffset
+                                    nearestDownNode.Layout.preferredHeight += Math.abs(itemOffset)
+                                }
+                                
+                                if(Math.abs(offsetY) < Math.abs(itemOffset)){
+                                    offsetY -= itemOffset
+                                }else{
+                                    return
                                 }
                             }
                         }
-                        
 
-                        if(offsetY > 0){
-                            for(var i=root.index; i < root.accordionNodes.length; i++){
-                                var node = root.accordionNodes[i]
-                                if(node.canZoomout){
-                                    var itemOffset = zoomOutItem(offsetY, node)
-                                    if(itemOffset < offsetY){
-                                        offsetY -= itemOffset
-                                    }else{
-                                        return
-                                    }
-                                }
-                            }
-                        } //offset > 0
                     }
                 }
             }
@@ -194,6 +194,8 @@ Item {
 
         Rectangle {
             id: bar
+            Layout.alignment: Qt.AlignTop
+            Layout.topMargin: 0
             radius: 2
             Layout.fillWidth: true
             implicitHeight: barHeight
@@ -225,22 +227,26 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     container.enableBehavior = true
-                    root.current = !root.current;
+                    clickZoomItem()
                 }
             }
         }
 
         Rectangle {
             id: container
+            Layout.alignment: Qt.AlignTop
             property bool enableBehavior: false
             Layout.fillWidth: true
-            implicitHeight: root.height - root.fixedHeight
+            Layout.minimumHeight: 0
+            Layout.maximumHeight: 99999
+            Layout.preferredHeight: current ? root.height - root.fixedHeight : 0
+            Layout.fillHeight: current
             clip: true
             
-            Behavior on implicitHeight {
-                enabled: container.enableBehavior
-                PropertyAnimation { duration: 200 }
-            }
+            // Behavior on implicitHeight {
+            //     enabled: container.enableBehavior
+            //     PropertyAnimation { duration: 200 }
+            // }
         }
 
         Component.onCompleted: {
@@ -259,9 +265,25 @@ Item {
             if(String(node).slice(0,15) !== "AccordionWidget") continue
             node.index = nodeIndex
             accordionNodes[nodeIndex] = node
+
+            console.log(node.title + " height: " + node.height)
+
             nodeIndex++
         }
+        console.log("parent.height: " + root.parent.height)
     }
+
+    onHeightChanged:{
+        if(height > expandMinimumHeight){
+            preservedHeight = height
+        }
+    }
+
+    // Behavior on y {
+    //     enabled: container.enableBehavior
+    //     PropertyAnimation { duration: 200 }
+    // }
+
 
 
 
